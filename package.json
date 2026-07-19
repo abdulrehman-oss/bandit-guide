@@ -1,0 +1,27 @@
+{
+  "name": "bandit-guide",
+  "version": "1.0.0",
+  "description": "Backend proxy server for OverTheWire Bandit SSH Terminal",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abdulrehman-oss/bandit-guide.git"
+  },
+  "keywords": ["bandit", "ssh", "overthewire", "terminal"],
+  "author": "Abdul Rehman Ahmed",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/abdulrehman-oss/bandit-guide/issues"
+  },
+  "homepage": "https://github.com/abdulrehman-oss/bandit-guide#readme",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "socket.io": "^4.8.3",
+    "ssh2": "^1.17.0"
+  }
+}
