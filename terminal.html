@@ -84,7 +84,7 @@
 <body>
 
     <h1>> bandit_terminal_</h1>
-    <p>Linux Environment Simulator. Use tabs to multitask.</p>
+    <p>Linux Environment Simulator & Live Connection Mode.</p>
     
     <!-- Tab Bar -->
     <div class="tab-bar" id="tabBar">
@@ -97,7 +97,21 @@
     <a href="index.html" class="back-btn"><- Back to Guide</a>
 
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script>
+        // Connect to Railway Backend
+        const BACKEND_URL = "https://bandit-guide-production.up.railway.app";
+        let socket;
+
+        try {
+            socket = io(BACKEND_URL);
+            socket.on("connect", () => {
+                console.log("Connected to Railway Backend!");
+            });
+        } catch (err) {
+            console.error("Socket initialization error:", err);
+        }
+
         const passwords = {
             0: "bandit0", 1: "6y2kwnwK6grgvwvpvLaa2T1cpFEKOhNR", 2: "PK8fYLZg2hnHSz83plBL1iEPKdD3QToB",
             3: "7ZZ2LFrykP2zEyvBl4m3clcL7tGYJPME", 4: "xzTXq1rDJQVVAzdv5cHq1TQytTWufAMq", 5: "6C7h9GD8M6ai5nr7wo1RonrzFjj9yIrG",
@@ -114,7 +128,7 @@
         };
 
         let tabCount = 0;
-        let sessions = {}; // Store state for each tab
+        let sessions = {};
 
         function getPrompt(sessionId) {
             let session = sessions[sessionId];
@@ -124,15 +138,12 @@
         }
 
         function switchTab(id) {
-            // Remove active classes
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.term-wrapper').forEach(tw => tw.classList.remove('active'));
             
-            // Add active to selected
             document.getElementById(`tabBtn-${id}`).classList.add('active');
             document.getElementById(`termWrap-${id}`).classList.add('active');
             
-            // Focus the terminal
             sessions[id].term.focus();
         }
 
@@ -140,7 +151,6 @@
             tabCount++;
             const id = tabCount;
             
-            // Create Session State
             sessions[id] = {
                 id: id,
                 isConnected: false,
@@ -151,7 +161,6 @@
                 term: null
             };
 
-            // 1. Create Tab Button
             const tabBtn = document.createElement('div');
             tabBtn.className = 'tab';
             tabBtn.id = `tabBtn-${id}`;
@@ -161,13 +170,11 @@
             const tabBar = document.getElementById('tabBar');
             tabBar.insertBefore(tabBtn, tabBar.lastElementChild);
 
-            // 2. Create Terminal Container
             const termWrap = document.createElement('div');
             termWrap.className = 'term-wrapper';
             termWrap.id = `termWrap-${id}`;
             document.getElementById('terminalsContainer').appendChild(termWrap);
 
-            // 3. Initialize xterm.js for this tab
             const term = new Terminal({
                 cursorBlink: true,
                 theme: { background: '#000000', foreground: '#00ff00', cursor: '#00ff00' }
@@ -176,13 +183,18 @@
             sessions[id].term = term;
 
             term.write(`Linux Environment Simulated (Session ${id})\r\n`);
+            term.write(`Connected Backend: ${BACKEND_URL}\r\n`);
             term.write(`Type 'help' for basic commands or use 'ssh' to connect.\r\n`);
             term.write(getPrompt(id));
 
-            // 4. Handle Input for this specific terminal
             term.onData(e => handleTerminalData(id, e));
 
-            // Switch to this new tab automatically
+            if (socket) {
+                socket.on(`output-${id}`, (data) => {
+                    term.write(data);
+                });
+            }
+
             switchTab(id);
         }
 
@@ -190,7 +202,7 @@
             let session = sessions[id];
             let term = session.term;
 
-            if (e === '\r') { // ENTER KEY
+            if (e === '\r') {
                 let cmd = session.inputBuffer.trim();
                 let args = cmd.split(' ');
 
@@ -210,7 +222,7 @@
                     term.write(getPrompt(id));
                 } 
                 else {
-                    session.inputBuffer = ''; // reset buffer
+                    session.inputBuffer = '';
                     
                     if (cmd === '') {
                         term.write('\r\n' + getPrompt(id));
@@ -245,7 +257,10 @@
                         }
                     }
                     else {
-                        // --- MOCK LINUX COMMANDS ---
+                        if (socket && session.isConnected) {
+                            socket.emit('command', { sessionId: id, command: cmd });
+                        }
+
                         if (session.isConnected) {
                             term.write(`\r\nbash: ${args[0]}: command not found (Simulator Mode)\r\n${getPrompt(id)}`);
                         } else {
@@ -277,18 +292,17 @@
                         }
                     }
                 }
-            } else if (e === '\u007F') { // BACKSPACE
+            } else if (e === '\u007F') {
                 if (session.inputBuffer.length > 0) {
                     session.inputBuffer = session.inputBuffer.slice(0, -1);
                     if(!session.isPasswordMode) term.write('\b \b');
                 }
-            } else { // NORMAL TYPING
+            } else {
                 session.inputBuffer += e;
                 if (!session.isPasswordMode) term.write(e); 
             }
         }
 
-        // Initialize first tab on load
         createNewTab();
     </script>
 </body>
