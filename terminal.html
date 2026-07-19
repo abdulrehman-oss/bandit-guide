@@ -116,7 +116,6 @@
             tabCount++;
             const id = tabCount;
             
-            // Backend Socket connection per tab session
             const socket = io(BACKEND_URL);
 
             sessions[id] = {
@@ -145,21 +144,44 @@
 
             const term = new Terminal({
                 cursorBlink: true,
+                fontFamily: 'IBM Plex Mono, monospace',
+                fontSize: 14,
+                cols: 80,
+                rows: 24,
                 theme: { background: '#000000', foreground: '#00ff00', cursor: '#00ff00' }
             });
             term.open(termWrap);
             sessions[id].term = term;
 
-            // Clean prompt screen
+            // Direct Key Intercept for Vim, Ctrl+C (SIGINT), Ctrl+D (EOF), Tab
+            term.attachCustomKeyEventHandler((arg) => {
+                if (sessions[id].isConnected) {
+                    if (arg.ctrlKey && arg.code === "KeyC" && arg.type === "keydown") {
+                        socket.emit('terminal-input', '\x03'); // Send SIGINT
+                        return false;
+                    }
+                    if (arg.ctrlKey && arg.code === "KeyD" && arg.type === "keydown") {
+                        socket.emit('terminal-input', '\x04'); // Send EOF
+                        return false;
+                    }
+                }
+                return true;
+            });
+
             term.write(`player@linux:~$ `);
 
-            // Receive real stream from Railway Backend
             socket.on('terminal-data', (data) => {
                 term.write(data);
             });
 
             socket.on('message', (msg) => {
                 term.write(msg);
+            });
+
+            socket.on('disconnect', () => {
+                term.write('\r\n\r\n[SSH Connection Closed]\r\nplayer@linux:~$ ');
+                sessions[id].isConnected = false;
+                sessions[id].isPasswordMode = false;
             });
 
             term.onData(e => handleTerminalInput(id, e));
@@ -171,41 +193,50 @@
             let session = sessions[id];
             let term = session.term;
 
+            // If connection is live, forward raw bytes directly to backend SSH stream
             if (session.isConnected) {
-                // Connection live hone ke baad commands seedha SSH socket par jaayengi
                 session.socket.emit('terminal-input', e);
                 return;
             }
 
+            // Local Shell Emulator Mode (Before SSH Login)
             if (e === '\r') {
                 let cmd = session.inputBuffer.trim();
                 session.inputBuffer = '';
 
                 if (session.isPasswordMode) {
-                    term.write('\r\n');
-                    // Send credentials to real SSH backend
+                    term.write('\r\nConnecting to OverTheWire SSH...\r\n');
+                    
+                    // Emit SSH connection request to backend
                     session.socket.emit('ssh-connect', {
                         host: 'bandit.labs.overthewire.org',
                         port: 2220,
                         username: `bandit${session.targetLevel}`,
-                        password: cmd
+                        password: cmd,
+                        cols: term.cols,
+                        rows: term.rows
                     });
+                    
                     session.isConnected = true;
                     session.isPasswordMode = false;
                     document.getElementById(`tabBtn-${id}`).innerHTML = `bandit${session.targetLevel}`;
-                } else if (cmd.startsWith('ssh bandit')) {
-                    let match = cmd.match(/ssh\s+bandit(\d+)/);
+                } else if (cmd.includes('ssh') && cmd.includes('bandit')) {
+                    // Smart Regex match for bandit levels (handles ssh bandit0, ssh bandit0@..., -p 2220, etc)
+                    let match = cmd.match(/bandit(\d+)/i);
                     if (match) {
                         session.targetLevel = parseInt(match[1]);
                         session.isPasswordMode = true;
                         term.write(`\r\nbandit${session.targetLevel}@bandit.labs.overthewire.org's password: `);
                     } else {
-                        term.write('\r\nInvalid format. Use: ssh bandit0@bandit.labs.overthewire.org\r\nplayer@linux:~$ ');
+                        term.write('\r\nInvalid target. Example: ssh bandit0@bandit.labs.overthewire.org -p 2220\r\nplayer@linux:~$ ');
                     }
+                } else if (cmd === 'clear') {
+                    term.clear();
+                    term.write('player@linux:~$ ');
                 } else {
-                    term.write('\r\nUse "ssh bandit0@bandit.labs.overthewire.org" to connect.\r\nplayer@linux:~$ ');
+                    term.write('\r\nUse "ssh bandit0@bandit.labs.overthewire.org -p 2220" to connect.\r\nplayer@linux:~$ ');
                 }
-            } else if (e === '\u007F') {
+            } else if (e === '\u007F') { // Backspace handling
                 if (session.inputBuffer.length > 0) {
                     session.inputBuffer = session.inputBuffer.slice(0, -1);
                     if (!session.isPasswordMode) term.write('\b \b');
