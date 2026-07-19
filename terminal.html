@@ -201,14 +201,8 @@
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script>
-        // Point this at your deployed backend/server.js (see backend/README.md)
         const BACKEND_URL = "https://bandit-guide-production.up.railway.app";
 
-        // ---------------------------------------------------------------
-        // Command hints per bandit level. These are just the *tools* you
-        // need to know, not the solution — you still have to work out how
-        // to combine them for each level.
-        // ---------------------------------------------------------------
         const LEVEL_HINTS = [
             { level: 0,  cmds: ['ssh', 'cat'] },
             { level: 1,  cmds: ['ls', 'cat ./-'] },
@@ -272,9 +266,6 @@
             });
         }
 
-        // ---------------------------------------------------------------
-        // Terminal / tab management
-        // ---------------------------------------------------------------
         let tabCount = 0;
         let activeTabId = null;
         let sessions = {};
@@ -297,7 +288,7 @@
         function fitAndNotify(id) {
             const s = sessions[id];
             if (!s || !s.fitAddon) return;
-            try { s.fitAddon.fit(); } catch (e) { /* container may be hidden */ }
+            try { s.fitAddon.fit(); } catch (e) {}
             if (s.isConnected) {
                 s.socket.emit('terminal-resize', { cols: s.term.cols, rows: s.term.rows });
             }
@@ -346,7 +337,6 @@
             };
             sessions[id] = session;
 
-            // ---- tab button ----
             const tabBtn = document.createElement('div');
             tabBtn.className = 'tab';
             tabBtn.id = `tabBtn-${id}`;
@@ -361,7 +351,6 @@
             const tabBar = document.getElementById('tabBar');
             tabBar.insertBefore(tabBtn, tabBar.lastElementChild);
 
-            // ---- terminal wrapper ----
             const termWrap = document.createElement('div');
             termWrap.className = 'term-wrapper';
             termWrap.id = `termWrap-${id}`;
@@ -383,12 +372,12 @@
             session.term = term;
             session.fitAddon = fitAddon;
 
-            // Keep the terminal size in sync with its container
+            wireSocketEvents(id);
+
             const resizeObserver = new ResizeObserver(() => fitAndNotify(id));
             resizeObserver.observe(termWrap);
             session.resizeObserver = resizeObserver;
 
-            // Ctrl+C / Ctrl+D pass-through once connected
             term.attachCustomKeyEventHandler((arg) => {
                 if (session.isConnected) {
                     if (arg.ctrlKey && arg.code === 'KeyC' && arg.type === 'keydown') {
@@ -404,25 +393,6 @@
             });
 
             term.write('player@linux:~$ ');
-
-            socket.on('terminal-data', (data) => term.write(data));
-            socket.on('message', (msg) => term.write(msg));
-
-            socket.on('ssh-closed', () => {
-                session.isConnected = false;
-                session.isPasswordMode = false;
-                setTabStatus(id, false);
-                term.write('\r\nplayer@linux:~$ ');
-            });
-
-            socket.on('disconnect', () => {
-                if (session.isConnected) {
-                    term.write('\r\n\r\n[Connection lost]\r\nplayer@linux:~$ ');
-                }
-                session.isConnected = false;
-                session.isPasswordMode = false;
-                setTabStatus(id, false);
-            });
 
             term.onData((e) => handleTerminalInput(id, e));
 
@@ -460,10 +430,8 @@
                 rows: term.rows,
             });
 
-            session.isConnected = true;
             session.isPasswordMode = false;
             document.querySelector(`#tabBtn-${id} .tab-label`).textContent = `bandit${level}`;
-            setTabStatus(id, true);
         }
 
         function handleTerminalInput(id, e) {
@@ -507,7 +475,6 @@
             }
         }
 
-        // ---- "Connect to this level" button in the hints panel ----
         document.getElementById('connectBtn').addEventListener('click', () => {
             const level = Number(document.getElementById('levelSelect').value);
             if (!activeTabId || !sessions[activeTabId]) return;
@@ -515,7 +482,6 @@
             if (session.isConnected) {
                 session.socket.disconnect();
             }
-            // Reconnect fresh, then walk through the normal ssh + password flow
             session.socket = io(BACKEND_URL);
             wireSocketEvents(activeTabId);
             session.isConnected = false;
@@ -524,20 +490,30 @@
             startSshLogin(activeTabId, level);
         });
 
-        // Re-attach the standard listeners to a freshly created socket
-        // (used when the connect button spins up a new connection for an
-        // already-open tab).
         function wireSocketEvents(id) {
             const session = sessions[id];
             const term = session.term;
-            session.socket.on('terminal-data', (data) => term.write(data));
+            
+            session.socket.off('terminal-data');
+            session.socket.off('message');
+            session.socket.off('ssh-closed');
+            session.socket.off('disconnect');
+
+            session.socket.on('terminal-data', (data) => {
+                session.isConnected = true;
+                setTabStatus(id, true);
+                term.write(data);
+            });
+            
             session.socket.on('message', (msg) => term.write(msg));
+            
             session.socket.on('ssh-closed', () => {
                 session.isConnected = false;
                 session.isPasswordMode = false;
                 setTabStatus(id, false);
                 term.write('\r\nplayer@linux:~$ ');
             });
+            
             session.socket.on('disconnect', () => {
                 if (session.isConnected) {
                     term.write('\r\n\r\n[Connection lost]\r\nplayer@linux:~$ ');

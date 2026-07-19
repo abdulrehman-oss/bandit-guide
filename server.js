@@ -38,7 +38,7 @@ const io = new Server(server, {
 
 // Basic per-IP connection limiter so one visitor can't open unlimited
 // SSH sessions to OverTheWire through your server.
-const MAX_SESSIONS_PER_IP = 3;
+const MAX_SESSIONS_PER_IP = 5;
 const sessionsByIp = new Map();
 
 function addSession(ip) {
@@ -51,12 +51,18 @@ function removeSession(ip) {
 }
 
 io.on('connection', (socket) => {
-  const ip = socket.handshake.address;
+  const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address;
   let sshClient = null;
   let sshStream = null;
   let countedForIp = false;
 
   socket.on('ssh-connect', (creds) => {
+    // Prevent multiple SSH attempts on a single socket session
+    if (sshClient) {
+      sshClient.end();
+      sshClient = null;
+    }
+
     // Basic validation — this proxy is scoped to the bandit wargame only.
     const host = creds && creds.host === 'bandit.labs.overthewire.org'
       ? creds.host
@@ -78,8 +84,11 @@ io.on('connection', (socket) => {
       socket.disconnect();
       return;
     }
-    addSession(ip);
-    countedForIp = true;
+
+    if (!countedForIp) {
+      addSession(ip);
+      countedForIp = true;
+    }
 
     sshClient = new Client();
 
@@ -105,9 +114,13 @@ io.on('connection', (socket) => {
         });
       })
       .on('error', (err) => {
-        // Wrong password, unreachable host, etc.
+        // Wrong password, unreachable host, timeout etc.
         socket.emit('message', `\r\n[!] SSH error: ${err.message}\r\n`);
         socket.emit('ssh-closed');
+        if (countedForIp) {
+          removeSession(ip);
+          countedForIp = false;
+        }
       })
       .on('keyboard-interactive', (_name, _instr, _lang, _prompts, finish) => {
         finish([password]);
@@ -118,10 +131,17 @@ io.on('connection', (socket) => {
         username,
         password,
         tryKeyboard: true,
-        readyTimeout: 20000,
-        // keepalive so long idle bandit sessions (e.g. while a student
-        // reads a level) don't get silently dropped
-        keepaliveInterval: 15000,
+        readyTimeout: 30000,
+        keepaliveInterval: 10000,
+        algorithms: {
+          serverHostKey: [
+            'ssh-ed25519',
+            'ecdsa-sha2-nistp256',
+            'rsa-sha2-512',
+            'rsa-sha2-256',
+            'ssh-rsa'
+          ]
+        }
       });
   });
 
@@ -136,7 +156,10 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     if (sshStream) sshStream.end();
     if (sshClient) sshClient.end();
-    if (countedForIp) removeSession(ip);
+    if (countedForIp) {
+      removeSession(ip);
+      countedForIp = false;
+    }
   });
 });
 
