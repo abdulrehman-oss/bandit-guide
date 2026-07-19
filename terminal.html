@@ -6,72 +6,163 @@
     <title>bandit :: live terminal</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
     <style>
+        :root{
+            --bg:#0a0f0c;
+            --panel:#0f1512;
+            --line:#22302a;
+            --green:#22c55e;
+            --green-dim:#16532f;
+            --text:#d1d5db;
+            --muted:#7d9384;
+        }
+        *{box-sizing:border-box;}
         body {
-            background-color: #0a0f0c;
-            color: #d1d5db;
-            font-family: 'IBM Plex Mono', monospace;
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'IBM Plex Mono', ui-monospace, monospace;
             margin: 0;
             padding: 20px;
             display: flex;
             flex-direction: column;
             align-items: center;
         }
-        h1 { color: #22c55e; margin-bottom: 5px; }
-        
+        h1 { color: var(--green); margin-bottom: 5px; }
+        p.sub{ color: var(--muted); margin-top:0; }
+
+        .layout{
+            width: 92%;
+            max-width: 1300px;
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            gap: 14px;
+            align-items: start;
+        }
+        @media (max-width: 900px){
+            .layout{ grid-template-columns: 1fr; }
+        }
+
+        /* ---------- hints sidebar ---------- */
+        .hints{
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            padding: 12px;
+            max-height: 560px;
+            overflow-y: auto;
+        }
+        .hints h2{
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--muted);
+            margin: 0 0 10px;
+        }
+        .level-select{
+            width:100%;
+            background:#0d1310;
+            color: var(--text);
+            border: 1px solid var(--line);
+            padding: 8px;
+            font-family: inherit;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        .cmd-title{ color: var(--green); font-size: 13px; margin: 0 0 8px; }
+        .pill-row{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom: 14px; }
+        .pill{
+            background:#0d1310;
+            border:1px solid var(--line);
+            color:#e5e7eb;
+            font-size: 12px;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-family: 'IBM Plex Mono', monospace;
+        }
+        .connect-btn{
+            width:100%;
+            background: var(--green);
+            color:#04140a;
+            border:none;
+            padding: 9px;
+            font-weight: 700;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .connect-btn:hover{ filter: brightness(1.08); }
+        .connect-btn:disabled{ opacity:.5; cursor:not-allowed; }
+        .hint-note{ color: var(--muted); font-size: 11px; margin-top: 10px; line-height:1.5; }
+
+        /* ---------- terminal area ---------- */
+        .term-area{ min-width: 0; }
         .tab-bar {
-            width: 85%;
             display: flex;
             gap: 5px;
             margin-bottom: 0;
             background: #111;
             padding: 5px 5px 0 5px;
-            border: 1px solid #333;
+            border: 1px solid var(--line);
             border-bottom: none;
             border-radius: 5px 5px 0 0;
+            flex-wrap: wrap;
         }
         .tab {
-            background-color: #222;
+            background-color: #1a221d;
             color: #888;
-            border: 1px solid #333;
+            border: 1px solid var(--line);
             border-bottom: none;
-            padding: 8px 15px;
+            padding: 8px 10px 8px 15px;
             cursor: pointer;
-            font-family: 'IBM Plex Mono', monospace;
+            font-family: inherit;
             border-radius: 5px 5px 0 0;
+            display:flex;
+            align-items:center;
+            gap:8px;
         }
         .tab.active {
             background-color: #000;
-            color: #22c55e;
-            border-color: #22c55e;
+            color: var(--green);
+            border-color: var(--green);
         }
+        .tab .status-dot{
+            width:7px; height:7px; border-radius:50%;
+            background: var(--muted);
+            flex: none;
+        }
+        .tab.connected .status-dot{ background: var(--green); }
+        .tab .close-x{
+            color:#666; font-size:14px; line-height:1; padding: 0 2px;
+        }
+        .tab .close-x:hover{ color:#ef4444; }
         .add-tab-btn {
             background-color: #1a221d;
-            color: #22c55e;
-            border: 1px dashed #22c55e;
+            color: var(--green);
+            border: 1px dashed var(--green);
             padding: 8px 12px;
             cursor: pointer;
-            font-family: 'IBM Plex Mono', monospace;
+            font-family: inherit;
             border-radius: 3px;
             margin-left: auto;
         }
-        .add-tab-btn:hover { background-color: #22c55e; color: #000; }
+        .add-tab-btn:hover { background-color: var(--green); color: #000; }
 
         .term-wrapper {
-            width: 85%;
-            height: 500px;
+            width: 100%;
+            height: 520px;
             background-color: #000;
             padding: 10px;
-            border: 1px solid #22c55e;
+            border: 1px solid var(--green);
             border-radius: 0 0 5px 5px;
             box-shadow: 0 0 15px rgba(0,0,0,0.8);
             display: none;
         }
         .term-wrapper.active { display: block; }
+        .term-inner{ width:100%; height:100%; }
 
         .back-btn {
             margin-top: 20px;
             padding: 10px 20px;
-            background-color: #22c55e;
+            background-color: var(--green);
             color: #000;
             text-decoration: none;
             font-weight: bold;
@@ -81,162 +172,331 @@
 </head>
 <body>
 
-    <h1>> bandit_terminal_</h1>
-    <p>Live Web-SSH Terminal Environment.</p>
-    
-    <div class="tab-bar" id="tabBar">
-        <button class="add-tab-btn" onclick="createNewTab()">+ New Tab</button>
+    <h1>&gt; bandit_terminal_</h1>
+    <p class="sub">Live web-SSH terminal for OverTheWire Bandit practice. Your bandit password is sent straight to SSH — it is never stored on this server.</p>
+
+    <div class="layout">
+        <!-- ---------- level command hints ---------- -->
+        <div class="hints">
+            <h2>Level hints</h2>
+            <select class="level-select" id="levelSelect"></select>
+            <div class="cmd-title" id="cmdTitle">Commands you'll likely need</div>
+            <div class="pill-row" id="cmdPills"></div>
+            <button class="connect-btn" id="connectBtn">Connect to this level</button>
+            <p class="hint-note">This fills in the SSH login for the selected level and asks for that level's password in the active tab. It does not solve the level for you.</p>
+        </div>
+
+        <!-- ---------- terminal ---------- -->
+        <div class="term-area">
+            <div class="tab-bar" id="tabBar">
+                <button class="add-tab-btn" onclick="createNewTab()">+ New Tab</button>
+            </div>
+            <div id="terminalsContainer"></div>
+        </div>
     </div>
 
-    <div id="terminalsContainer"></div>
-
-    <a href="index.html" class="back-btn"><- Back to Guide</a>
+    <a href="index.html" class="back-btn">&lt;- Back to Guide</a>
 
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script>
+        // Point this at your deployed backend/server.js (see backend/README.md)
         const BACKEND_URL = "https://bandit-guide-production.up.railway.app";
-        
+
+        // ---------------------------------------------------------------
+        // Command hints per bandit level. These are just the *tools* you
+        // need to know, not the solution — you still have to work out how
+        // to combine them for each level.
+        // ---------------------------------------------------------------
+        const LEVEL_HINTS = [
+            { level: 0,  cmds: ['ssh', 'cat'] },
+            { level: 1,  cmds: ['ls', 'cat ./-'] },
+            { level: 2,  cmds: ['ls', 'cat "filename"'] },
+            { level: 3,  cmds: ['ls -a', 'cat'] },
+            { level: 4,  cmds: ['ls -a', 'file *', 'cat'] },
+            { level: 5,  cmds: ['find', '-size', '-readable', '! -executable'] },
+            { level: 6,  cmds: ['find /', '-user', '-group', '-size', '2>/dev/null'] },
+            { level: 7,  cmds: ['grep'] },
+            { level: 8,  cmds: ['sort', 'uniq -u'] },
+            { level: 9,  cmds: ['strings', 'grep'] },
+            { level: 10, cmds: ['base64 -d'] },
+            { level: 11, cmds: ['tr', 'ROT13'] },
+            { level: 12, cmds: ['xxd -r', 'file', 'gzip -d', 'bzip2 -d', 'tar -x'] },
+            { level: 13, cmds: ['ssh -i', 'chmod 600'] },
+            { level: 14, cmds: ['nc localhost 30000'] },
+            { level: 15, cmds: ['openssl s_client -connect'] },
+            { level: 16, cmds: ['nmap', 'openssl s_client (SSL ports)'] },
+            { level: 17, cmds: ['diff'] },
+            { level: 18, cmds: ['ssh user@host command (bypass .bashrc)'] },
+            { level: 19, cmds: ['./setuid-binary command'] },
+            { level: 20, cmds: ['nc -l -p', 'setuid binary + nc'] },
+            { level: 21, cmds: ['cat /etc/cron.d/*', 'crontab -l'] },
+            { level: 22, cmds: ['cat cron script', 'read what it copies'] },
+            { level: 23, cmds: ['edit /tmp script cron runs', 'chmod +x'] },
+            { level: 24, cmds: ['bash loop', 'nc (brute force 4-digit pin)'] },
+            { level: 25, cmds: ['ssh -i key', 'more/less to break out of restricted shell'] },
+            { level: 26, cmds: ['ssh -i key', ':e or !bash inside editor to spawn shell'] },
+            { level: 27, cmds: ['git clone ssh://user@host:2220/repo'] },
+            { level: 28, cmds: ['git log', 'git diff', 'git show'] },
+            { level: 29, cmds: ['git log --all', 'git branch -a', 'git checkout'] },
+            { level: 30, cmds: ['git tag', 'git show <tag>'] },
+            { level: 31, cmds: ['git commit', 'git push', '.gitignore'] },
+            { level: 32, cmds: ['$0', 'uppercase shell escape'] },
+            { level: 33, cmds: ['explore the environment: this one is open-ended'] },
+        ];
+
+        function buildLevelHintUI() {
+            const select = document.getElementById('levelSelect');
+            LEVEL_HINTS.forEach(({level}) => {
+                const opt = document.createElement('option');
+                opt.value = level;
+                opt.textContent = `Bandit ${level} -> ${level + 1}`;
+                select.appendChild(opt);
+            });
+            select.addEventListener('change', renderHints);
+            renderHints();
+        }
+
+        function renderHints() {
+            const level = Number(document.getElementById('levelSelect').value);
+            const entry = LEVEL_HINTS.find(h => h.level === level) || LEVEL_HINTS[0];
+            document.getElementById('cmdTitle').textContent = `Bandit ${entry.level}: commands you'll likely need`;
+            const pillRow = document.getElementById('cmdPills');
+            pillRow.innerHTML = '';
+            entry.cmds.forEach(c => {
+                const span = document.createElement('span');
+                span.className = 'pill';
+                span.textContent = c;
+                pillRow.appendChild(span);
+            });
+        }
+
+        // ---------------------------------------------------------------
+        // Terminal / tab management
+        // ---------------------------------------------------------------
         let tabCount = 0;
+        let activeTabId = null;
         let sessions = {};
 
         function switchTab(id) {
+            activeTabId = id;
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.term-wrapper').forEach(tw => tw.classList.remove('active'));
-            
+
             document.getElementById(`tabBtn-${id}`).classList.add('active');
             document.getElementById(`termWrap-${id}`).classList.add('active');
-            
-            if (sessions[id] && sessions[id].term) {
-                sessions[id].term.focus();
+
+            const s = sessions[id];
+            if (s && s.term) {
+                s.term.focus();
+                requestAnimationFrame(() => fitAndNotify(id));
             }
+        }
+
+        function fitAndNotify(id) {
+            const s = sessions[id];
+            if (!s || !s.fitAddon) return;
+            try { s.fitAddon.fit(); } catch (e) { /* container may be hidden */ }
+            if (s.isConnected) {
+                s.socket.emit('terminal-resize', { cols: s.term.cols, rows: s.term.rows });
+            }
+        }
+
+        function closeTab(id) {
+            const s = sessions[id];
+            if (!s) return;
+            s.socket.disconnect();
+            s.term.dispose();
+            document.getElementById(`tabBtn-${id}`)?.remove();
+            document.getElementById(`termWrap-${id}`)?.remove();
+            delete sessions[id];
+
+            const remaining = Object.keys(sessions);
+            if (activeTabId === id) {
+                if (remaining.length) {
+                    switchTab(Number(remaining[remaining.length - 1]));
+                } else {
+                    createNewTab();
+                }
+            }
+        }
+
+        function setTabStatus(id, connected) {
+            const btn = document.getElementById(`tabBtn-${id}`);
+            if (!btn) return;
+            btn.classList.toggle('connected', connected);
         }
 
         function createNewTab() {
             tabCount++;
             const id = tabCount;
-            
+
             const socket = io(BACKEND_URL);
 
-            sessions[id] = {
-                id: id,
-                socket: socket,
+            const session = {
+                id,
+                socket,
                 isConnected: false,
                 isPasswordMode: false,
                 targetLevel: null,
                 inputBuffer: '',
-                term: null
+                term: null,
+                fitAddon: null,
             };
+            sessions[id] = session;
 
+            // ---- tab button ----
             const tabBtn = document.createElement('div');
             tabBtn.className = 'tab';
             tabBtn.id = `tabBtn-${id}`;
-            tabBtn.innerHTML = `Terminal ${id}`;
-            tabBtn.onclick = () => switchTab(id);
-            
+            tabBtn.innerHTML = `<span class="status-dot"></span><span class="tab-label">Terminal ${id}</span><span class="close-x">×</span>`;
+            tabBtn.addEventListener('click', (e) => {
+                if (e.target.classList.contains('close-x')) {
+                    closeTab(id);
+                } else {
+                    switchTab(id);
+                }
+            });
             const tabBar = document.getElementById('tabBar');
             tabBar.insertBefore(tabBtn, tabBar.lastElementChild);
 
+            // ---- terminal wrapper ----
             const termWrap = document.createElement('div');
             termWrap.className = 'term-wrapper';
             termWrap.id = `termWrap-${id}`;
+            const inner = document.createElement('div');
+            inner.className = 'term-inner';
+            termWrap.appendChild(inner);
             document.getElementById('terminalsContainer').appendChild(termWrap);
 
             const term = new Terminal({
                 cursorBlink: true,
                 fontFamily: 'IBM Plex Mono, monospace',
                 fontSize: 14,
-                cols: 80,
-                rows: 24,
-                theme: { background: '#000000', foreground: '#00ff00', cursor: '#00ff00' }
+                theme: { background: '#000000', foreground: '#00ff00', cursor: '#00ff00' },
             });
-            term.open(termWrap);
-            sessions[id].term = term;
+            const fitAddon = new FitAddon.FitAddon();
+            term.loadAddon(fitAddon);
+            term.open(inner);
 
-            // Direct Key Intercept for Vim, Ctrl+C (SIGINT), Ctrl+D (EOF), Tab
+            session.term = term;
+            session.fitAddon = fitAddon;
+
+            // Keep the terminal size in sync with its container
+            const resizeObserver = new ResizeObserver(() => fitAndNotify(id));
+            resizeObserver.observe(termWrap);
+            session.resizeObserver = resizeObserver;
+
+            // Ctrl+C / Ctrl+D pass-through once connected
             term.attachCustomKeyEventHandler((arg) => {
-                if (sessions[id].isConnected) {
-                    if (arg.ctrlKey && arg.code === "KeyC" && arg.type === "keydown") {
-                        socket.emit('terminal-input', '\x03'); // Send SIGINT
+                if (session.isConnected) {
+                    if (arg.ctrlKey && arg.code === 'KeyC' && arg.type === 'keydown') {
+                        socket.emit('terminal-input', '\x03');
                         return false;
                     }
-                    if (arg.ctrlKey && arg.code === "KeyD" && arg.type === "keydown") {
-                        socket.emit('terminal-input', '\x04'); // Send EOF
+                    if (arg.ctrlKey && arg.code === 'KeyD' && arg.type === 'keydown') {
+                        socket.emit('terminal-input', '\x04');
                         return false;
                     }
                 }
                 return true;
             });
 
-            term.write(`player@linux:~$ `);
+            term.write('player@linux:~$ ');
 
-            socket.on('terminal-data', (data) => {
-                term.write(data);
-            });
+            socket.on('terminal-data', (data) => term.write(data));
+            socket.on('message', (msg) => term.write(msg));
 
-            socket.on('message', (msg) => {
-                term.write(msg);
+            socket.on('ssh-closed', () => {
+                session.isConnected = false;
+                session.isPasswordMode = false;
+                setTabStatus(id, false);
+                term.write('\r\nplayer@linux:~$ ');
             });
 
             socket.on('disconnect', () => {
-                term.write('\r\n\r\n[SSH Connection Closed]\r\nplayer@linux:~$ ');
-                sessions[id].isConnected = false;
-                sessions[id].isPasswordMode = false;
+                if (session.isConnected) {
+                    term.write('\r\n\r\n[Connection lost]\r\nplayer@linux:~$ ');
+                }
+                session.isConnected = false;
+                session.isPasswordMode = false;
+                setTabStatus(id, false);
             });
 
-            term.onData(e => handleTerminalInput(id, e));
+            term.onData((e) => handleTerminalInput(id, e));
 
             switchTab(id);
+            requestAnimationFrame(() => fitAndNotify(id));
+        }
+
+        function startSshLogin(id, level, passwordFromCaller) {
+            const session = sessions[id];
+            if (!session) return;
+            const term = session.term;
+
+            session.targetLevel = level;
+
+            if (passwordFromCaller !== undefined) {
+                term.write(`\r\nbandit${level}@bandit.labs.overthewire.org's password: (using saved password)\r\n`);
+                connectSsh(id, level, passwordFromCaller);
+            } else {
+                session.isPasswordMode = true;
+                term.write(`\r\nbandit${level}@bandit.labs.overthewire.org's password: `);
+            }
+        }
+
+        function connectSsh(id, level, password) {
+            const session = sessions[id];
+            const term = session.term;
+            term.write('\r\nConnecting to OverTheWire SSH...\r\n');
+
+            session.socket.emit('ssh-connect', {
+                host: 'bandit.labs.overthewire.org',
+                port: 2220,
+                username: `bandit${level}`,
+                password,
+                cols: term.cols,
+                rows: term.rows,
+            });
+
+            session.isConnected = true;
+            session.isPasswordMode = false;
+            document.querySelector(`#tabBtn-${id} .tab-label`).textContent = `bandit${level}`;
+            setTabStatus(id, true);
         }
 
         function handleTerminalInput(id, e) {
-            let session = sessions[id];
-            let term = session.term;
+            const session = sessions[id];
+            const term = session.term;
 
-            // If connection is live, forward raw bytes directly to backend SSH stream
             if (session.isConnected) {
                 session.socket.emit('terminal-input', e);
                 return;
             }
 
-            // Local Shell Emulator Mode (Before SSH Login)
             if (e === '\r') {
-                let cmd = session.inputBuffer.trim();
+                const cmd = session.inputBuffer.trim();
                 session.inputBuffer = '';
 
                 if (session.isPasswordMode) {
-                    term.write('\r\nConnecting to OverTheWire SSH...\r\n');
-                    
-                    // Emit SSH connection request to backend
-                    session.socket.emit('ssh-connect', {
-                        host: 'bandit.labs.overthewire.org',
-                        port: 2220,
-                        username: `bandit${session.targetLevel}`,
-                        password: cmd,
-                        cols: term.cols,
-                        rows: term.rows
-                    });
-                    
-                    session.isConnected = true;
-                    session.isPasswordMode = false;
-                    document.getElementById(`tabBtn-${id}`).innerHTML = `bandit${session.targetLevel}`;
+                    connectSsh(id, session.targetLevel, cmd);
                 } else if (cmd.includes('ssh') && cmd.includes('bandit')) {
-                    // Smart Regex match for bandit levels (handles ssh bandit0, ssh bandit0@..., -p 2220, etc)
-                    let match = cmd.match(/bandit(\d+)/i);
+                    const match = cmd.match(/bandit(\d+)/i);
                     if (match) {
-                        session.targetLevel = parseInt(match[1]);
-                        session.isPasswordMode = true;
-                        term.write(`\r\nbandit${session.targetLevel}@bandit.labs.overthewire.org's password: `);
+                        startSshLogin(id, parseInt(match[1], 10));
                     } else {
                         term.write('\r\nInvalid target. Example: ssh bandit0@bandit.labs.overthewire.org -p 2220\r\nplayer@linux:~$ ');
                     }
                 } else if (cmd === 'clear') {
                     term.clear();
                     term.write('player@linux:~$ ');
+                } else if (cmd === '') {
+                    term.write('\r\nplayer@linux:~$ ');
                 } else {
-                    term.write('\r\nUse "ssh bandit0@bandit.labs.overthewire.org -p 2220" to connect.\r\nplayer@linux:~$ ');
+                    term.write('\r\nUse "ssh bandit0@bandit.labs.overthewire.org -p 2220" to connect, or pick a level on the left and click Connect.\r\nplayer@linux:~$ ');
                 }
-            } else if (e === '\u007F') { // Backspace handling
+            } else if (e === '\u007F') {
                 if (session.inputBuffer.length > 0) {
                     session.inputBuffer = session.inputBuffer.slice(0, -1);
                     if (!session.isPasswordMode) term.write('\b \b');
@@ -247,6 +507,52 @@
             }
         }
 
+        // ---- "Connect to this level" button in the hints panel ----
+        document.getElementById('connectBtn').addEventListener('click', () => {
+            const level = Number(document.getElementById('levelSelect').value);
+            if (!activeTabId || !sessions[activeTabId]) return;
+            const session = sessions[activeTabId];
+            if (session.isConnected) {
+                session.socket.disconnect();
+            }
+            // Reconnect fresh, then walk through the normal ssh + password flow
+            session.socket = io(BACKEND_URL);
+            wireSocketEvents(activeTabId);
+            session.isConnected = false;
+            session.isPasswordMode = false;
+            session.term.write(`\r\nssh bandit${level}@bandit.labs.overthewire.org -p 2220`);
+            startSshLogin(activeTabId, level);
+        });
+
+        // Re-attach the standard listeners to a freshly created socket
+        // (used when the connect button spins up a new connection for an
+        // already-open tab).
+        function wireSocketEvents(id) {
+            const session = sessions[id];
+            const term = session.term;
+            session.socket.on('terminal-data', (data) => term.write(data));
+            session.socket.on('message', (msg) => term.write(msg));
+            session.socket.on('ssh-closed', () => {
+                session.isConnected = false;
+                session.isPasswordMode = false;
+                setTabStatus(id, false);
+                term.write('\r\nplayer@linux:~$ ');
+            });
+            session.socket.on('disconnect', () => {
+                if (session.isConnected) {
+                    term.write('\r\n\r\n[Connection lost]\r\nplayer@linux:~$ ');
+                }
+                session.isConnected = false;
+                session.isPasswordMode = false;
+                setTabStatus(id, false);
+            });
+        }
+
+        window.addEventListener('resize', () => {
+            if (activeTabId) fitAndNotify(activeTabId);
+        });
+
+        buildLevelHintUI();
         createNewTab();
     </script>
 </body>
