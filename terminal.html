@@ -18,7 +18,6 @@
         }
         h1 { color: #22c55e; margin-bottom: 5px; }
         
-        /* Tab System Styling */
         .tab-bar {
             width: 85%;
             display: flex;
@@ -57,7 +56,6 @@
         }
         .add-tab-btn:hover { background-color: #22c55e; color: #000; }
 
-        /* Terminal Container */
         .term-wrapper {
             width: 85%;
             height: 500px;
@@ -66,9 +64,9 @@
             border: 1px solid #22c55e;
             border-radius: 0 0 5px 5px;
             box-shadow: 0 0 15px rgba(0,0,0,0.8);
-            display: none; /* Hidden by default */
+            display: none;
         }
-        .term-wrapper.active { display: block; } /* Show active tab */
+        .term-wrapper.active { display: block; }
 
         .back-btn {
             margin-top: 20px;
@@ -84,14 +82,12 @@
 <body>
 
     <h1>> bandit_terminal_</h1>
-    <p>Linux Environment Simulator & Live Connection Mode.</p>
+    <p>Live Web-SSH Terminal Environment.</p>
     
-    <!-- Tab Bar -->
     <div class="tab-bar" id="tabBar">
         <button class="add-tab-btn" onclick="createNewTab()">+ New Tab</button>
     </div>
 
-    <!-- Container for Terminals -->
     <div id="terminalsContainer"></div>
 
     <a href="index.html" class="back-btn"><- Back to Guide</a>
@@ -99,43 +95,10 @@
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script>
-        // Connect to Railway Backend
         const BACKEND_URL = "https://bandit-guide-production.up.railway.app";
-        let socket;
-
-        try {
-            socket = io(BACKEND_URL);
-            socket.on("connect", () => {
-                console.log("Connected to Railway Backend!");
-            });
-        } catch (err) {
-            console.error("Socket initialization error:", err);
-        }
-
-        const passwords = {
-            0: "bandit0", 1: "6y2kwnwK6grgvwvpvLaa2T1cpFEKOhNR", 2: "PK8fYLZg2hnHSz83plBL1iEPKdD3QToB",
-            3: "7ZZ2LFrykP2zEyvBl4m3clcL7tGYJPME", 4: "xzTXq1rDJQVVAzdv5cHq1TQytTWufAMq", 5: "6C7h9GD8M6ai5nr7wo1RonrzFjj9yIrG",
-            6: "pXa26xhMWaC2SvDotA4r9EgZkulOeSBW", 7: "Bmnnvf82KzQlfxgAI2d1zYbr1u9pr3E3", 8: "VR1ljMayciFxbnUokuQmJFw6QC9VKtub",
-            9: "EjmOSvuAu7sGAHqHVcBDPirRe9T03kxl", 10: "B0s2khmbT9u0geKuOoVGW3JZKhndE3BG", 11: "pYfOY6HwUsDj5rL9UvyhU7MCmv8vN5Ro",
-            12: "GROozWPO8QyN0mGrjUkID0WCYkZiQxrN", 13: "qQYQiHOBPR8zR61qxYqX45quvihF2uzk", 14: "aaWecNkG4FhxJQxz07uiwzVP6bJiYS65",
-            15: "pbLYuZtTg4MgaqfJx8jbA9gKKGqM68A7", 16: "kS0Hf0u5HiXFwKMKFqXvPdOTNGGa0X8V", 17: "cd /tmp: cat mykey.key > bandit17.key",
-            18: "OQxXZjELndr90zuhOTDYBEomI0SZITXI", 19: "KpsOfPkcP7i1FlIExk2QEjyt6dw8dxZI", 20: "4pIjcunZ0fK2vmp3IwfG8Vf7VhxD6pOA",
-            21: "bW9kBv5WC3P4yoDyf12LSdGuNz5ka6hY", 22: "RYVux2rHEm9tiXHmLFzuR7Vhx6AZQMEz", 23: "gKXDTAXnIz3OBxiPjRZ2uqutUlPZrBsw",
-            24: "hVQMk3lJNsmQ7VF3ubyrNNBom7BOgVXv", 25: "SoHfqMOEqIX2IYKVciZxvgpR9a2Djx4P", 26: "jHdv2ELQhT22BkprMNDjybZDAkw1zeBJ",
-            27: "STJLJBRRphMxKB392CT4iOr5CbzPU9ER", 28: "y8Yd2ssKcpHpud7UvOSOxwamRMzIGIeQ", 29: "Em7eGtqaMySwNFjCpwzzHhLhospOcdt0",
-            30: "jq9Dfg2rXsfYsWMgFuKlXhphjdH7USgX", 31: "82NkymblpGBYmIXG6ZQ8YldBYstHpfUf", 32: "pWuj5jBQ6IgV0NXwiH6g1pXRF8S1YvbT",
-            33: "u4P2CyPOwPGLe94RdD9Uo2FxFwvnFswM"
-        };
-
+        
         let tabCount = 0;
         let sessions = {};
-
-        function getPrompt(sessionId) {
-            let session = sessions[sessionId];
-            if (session.isPasswordMode) return `bandit${session.targetLevel}@bandit.labs.overthewire.org's password: `;
-            if (session.isConnected) return `bandit${session.connectedLevel}@bandit:~$ `;
-            return `player@linux:~$ `;
-        }
 
         function switchTab(id) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -144,17 +107,22 @@
             document.getElementById(`tabBtn-${id}`).classList.add('active');
             document.getElementById(`termWrap-${id}`).classList.add('active');
             
-            sessions[id].term.focus();
+            if (sessions[id] && sessions[id].term) {
+                sessions[id].term.focus();
+            }
         }
 
         function createNewTab() {
             tabCount++;
             const id = tabCount;
             
+            // Backend Socket connection per tab session
+            const socket = io(BACKEND_URL);
+
             sessions[id] = {
                 id: id,
+                socket: socket,
                 isConnected: false,
-                connectedLevel: null,
                 isPasswordMode: false,
                 targetLevel: null,
                 inputBuffer: '',
@@ -182,124 +150,69 @@
             term.open(termWrap);
             sessions[id].term = term;
 
-            term.write(`Linux Environment Simulated (Session ${id})\r\n`);
-            term.write(`Connected Backend: ${BACKEND_URL}\r\n`);
-            term.write(`Type 'help' for basic commands or use 'ssh' to connect.\r\n`);
-            term.write(getPrompt(id));
+            // Clean prompt screen
+            term.write(`player@linux:~$ `);
 
-            term.onData(e => handleTerminalData(id, e));
+            // Receive real stream from Railway Backend
+            socket.on('terminal-data', (data) => {
+                term.write(data);
+            });
 
-            if (socket) {
-                socket.on(`output-${id}`, (data) => {
-                    term.write(data);
-                });
-            }
+            socket.on('message', (msg) => {
+                term.write(msg);
+            });
+
+            term.onData(e => handleTerminalInput(id, e));
 
             switchTab(id);
         }
 
-        function handleTerminalData(id, e) {
+        function handleTerminalInput(id, e) {
             let session = sessions[id];
             let term = session.term;
 
+            if (session.isConnected) {
+                // Connection live hone ke baad commands seedha SSH socket par jaayengi
+                session.socket.emit('terminal-input', e);
+                return;
+            }
+
             if (e === '\r') {
                 let cmd = session.inputBuffer.trim();
-                let args = cmd.split(' ');
+                session.inputBuffer = '';
 
                 if (session.isPasswordMode) {
-                    if (cmd === passwords[session.targetLevel]) {
-                        session.isConnected = true;
-                        session.connectedLevel = session.targetLevel;
-                        term.write('\r\n\x1b[32mAuthentication successful.\x1b[0m\r\n');
-                        term.write(`Welcome to Bandit Level ${session.connectedLevel}!\r\n`);
-                        document.getElementById(`tabBtn-${id}`).innerHTML = `bandit${session.connectedLevel}`;
-                    } else {
-                        term.write('\r\n\x1b[31mPermission denied, please try again.\x1b[0m\r\n');
-                    }
+                    term.write('\r\n');
+                    // Send credentials to real SSH backend
+                    session.socket.emit('ssh-connect', {
+                        host: 'bandit.labs.overthewire.org',
+                        port: 2220,
+                        username: `bandit${session.targetLevel}`,
+                        password: cmd
+                    });
+                    session.isConnected = true;
                     session.isPasswordMode = false;
-                    session.targetLevel = null;
-                    session.inputBuffer = '';
-                    term.write(getPrompt(id));
-                } 
-                else {
-                    session.inputBuffer = '';
-                    
-                    if (cmd === '') {
-                        term.write('\r\n' + getPrompt(id));
+                    document.getElementById(`tabBtn-${id}`).innerHTML = `bandit${session.targetLevel}`;
+                } else if (cmd.startsWith('ssh bandit')) {
+                    let match = cmd.match(/ssh\s+bandit(\d+)/);
+                    if (match) {
+                        session.targetLevel = parseInt(match[1]);
+                        session.isPasswordMode = true;
+                        term.write(`\r\nbandit${session.targetLevel}@bandit.labs.overthewire.org's password: `);
+                    } else {
+                        term.write('\r\nInvalid format. Use: ssh bandit0@bandit.labs.overthewire.org\r\nplayer@linux:~$ ');
                     }
-                    else if (cmd === 'clear') {
-                        term.clear();
-                        term.write(getPrompt(id));
-                    }
-                    else if (cmd === 'exit') {
-                        if (session.isConnected) {
-                            term.write('\r\nConnection closed.');
-                            session.isConnected = false;
-                            session.connectedLevel = null;
-                            document.getElementById(`tabBtn-${id}`).innerHTML = `Terminal ${id}`;
-                        } else {
-                            term.write('\r\nUse browser controls to close the page.');
-                        }
-                        term.write('\r\n' + getPrompt(id));
-                    }
-                    else if (args[0] === 'ssh') {
-                        let match = cmd.match(/ssh\s+bandit(\d+)/);
-                        if (match) {
-                            session.targetLevel = parseInt(match[1]);
-                            if (passwords[session.targetLevel] !== undefined) {
-                                session.isPasswordMode = true;
-                                term.write('\r\n' + getPrompt(id));
-                            } else {
-                                term.write(`\r\nLevel ${session.targetLevel} does not exist in our database.\r\n${getPrompt(id)}`);
-                            }
-                        } else {
-                            term.write('\r\nInvalid SSH format. Try: ssh bandit0@bandit.labs.overthewire.org\r\n' + getPrompt(id));
-                        }
-                    }
-                    else {
-                        if (socket && session.isConnected) {
-                            socket.emit('command', { sessionId: id, command: cmd });
-                        }
-
-                        if (session.isConnected) {
-                            term.write(`\r\nbash: ${args[0]}: command not found (Simulator Mode)\r\n${getPrompt(id)}`);
-                        } else {
-                            term.write('\r\n');
-                            switch(args[0]) {
-                                case 'help':
-                                    term.write('Supported mock commands: ls, pwd, whoami, echo, clear, ssh, exit');
-                                    break;
-                                case 'ls':
-                                    term.write('\x1b[34mDocuments\x1b[0m  \x1b[34mDownloads\x1b[0m  notes.txt  readme.md');
-                                    break;
-                                case 'pwd':
-                                    term.write('/home/player');
-                                    break;
-                                case 'whoami':
-                                    term.write('player');
-                                    break;
-                                case 'echo':
-                                    term.write(args.slice(1).join(' '));
-                                    break;
-                                case 'cat':
-                                    if(args[1]) term.write(`cat: ${args[1]}: Permission denied (Simulator limitation)`);
-                                    else term.write('cat: missing operand');
-                                    break;
-                                default:
-                                    term.write(`bash: ${args[0]}: command not found`);
-                            }
-                            term.write('\r\n' + getPrompt(id));
-                        }
-                    }
+                } else {
+                    term.write('\r\nUse "ssh bandit0@bandit.labs.overthewire.org" to connect.\r\nplayer@linux:~$ ');
                 }
             } else if (e === '\u007F') {
                 if (session.inputBuffer.length > 0) {
                     session.inputBuffer = session.inputBuffer.slice(0, -1);
-                    if(!session.isPasswordMode) term.write('\b \b');
+                    if (!session.isPasswordMode) term.write('\b \b');
                 }
             } else {
                 session.inputBuffer += e;
-                if (!session.isPasswordMode) term.write(e); 
+                if (!session.isPasswordMode) term.write(e);
             }
         }
 
