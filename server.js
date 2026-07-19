@@ -131,8 +131,9 @@ io.on('connection', (socket) => {
         username,
         password,
         tryKeyboard: true,
-        readyTimeout: 30000,
-        keepaliveInterval: 10000,
+        readyTimeout: 10000,
+        connectTimeout: 10000,
+        keepaliveInterval: 5000,
         algorithms: {
           serverHostKey: [
             'ssh-ed25519',
@@ -140,6 +141,13 @@ io.on('connection', (socket) => {
             'rsa-sha2-512',
             'rsa-sha2-256',
             'ssh-rsa'
+          ],
+          cipher: [
+            'aes128-ctr',
+            'aes192-ctr',
+            'aes256-ctr',
+            'aes128-gcm',
+            'aes256-gcm'
           ]
         }
       });
