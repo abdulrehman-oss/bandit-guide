@@ -41,7 +41,6 @@
             .layout{ grid-template-columns: 1fr; }
         }
 
-        /* ---------- hints sidebar ---------- */
         .hints{
             background: var(--panel);
             border: 1px solid var(--line);
@@ -93,7 +92,6 @@
         .connect-btn:disabled{ opacity:.5; cursor:not-allowed; }
         .hint-note{ color: var(--muted); font-size: 11px; margin-top: 10px; line-height:1.5; }
 
-        /* ---------- terminal area ---------- */
         .term-area{ min-width: 0; }
         .tab-bar {
             display: flex;
@@ -169,7 +167,6 @@
             border-radius: 3px;
         }
 
-        /* --- New Banners CSS --- */
         .announcement-banner {
             width: 92%;
             max-width: 1300px;
@@ -206,35 +203,30 @@
 <body>
 
     <h1>&gt; bandit_terminal_</h1>
-    <p class="sub">Live web-SSH terminal for OverTheWire Bandit practice. Your bandit password is sent straight to SSH — it is never stored on this server.</p>
+    <p class="sub">Live web-SSH terminal for OverTheWire Bandit practice.</p>
 
-    <!-- Virtual Environment Ticker Banner -->
     <div class="announcement-banner">
         <span>⚠️ Note: This terminal is only a virtual environment for quick practice! ⚠️</span>
     </div>
 
-    <!-- New Terminal Warning Notice -->
     <div class="sticky-note warning">
         ⚠️ <strong>Important:</strong> You should open a new terminal tab for each level, otherwise connection will not establish.
     </div>
 
-    <!-- Sticky Native Terminal Notice -->
     <div class="sticky-note">
-        💡 <strong>Tip:</strong> Most of the levels work on your native terminal as well. For complex commands like git cloning, using your local native terminal is recommended.
+        💡 <strong>Tip:</strong> Most of the levels work on your native terminal as well.
     </div>
 
     <div class="layout">
-        <!-- ---------- level command hints ---------- -->
         <div class="hints">
             <h2>Level hints</h2>
             <select class="level-select" id="levelSelect"></select>
             <div class="cmd-title" id="cmdTitle">Commands you'll likely need</div>
             <div class="pill-row" id="cmdPills"></div>
             <button class="connect-btn" id="connectBtn">Connect to this level</button>
-            <p class="hint-note">This fills in the SSH login for the selected level and asks for that level's password in the active tab. It does not solve the level for you.</p>
+            <p class="hint-note">This fills in the SSH login for the selected level and asks for that level's password.</p>
         </div>
 
-        <!-- ---------- terminal ---------- -->
         <div class="term-area">
             <div class="tab-bar" id="tabBar">
                 <button class="add-tab-btn" onclick="createNewTab()">+ New Tab</button>
@@ -249,7 +241,6 @@
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script>
-        // Automatic Backend URL: Local par localhost, aur live hone par Railway URL use hoga
         const BACKEND_URL = window.location.hostname === 'localhost' 
             ? 'http://localhost:3000' 
             : 'https://bandit-guide-production.up.railway.app';
@@ -271,24 +262,24 @@
             { level: 13, cmds: ['ssh -i', 'chmod 600'] },
             { level: 14, cmds: ['nc localhost 30000'] },
             { level: 15, cmds: ['openssl s_client -connect'] },
-            { level: 16, cmds: ['nmap', 'openssl s_client (SSL ports)'] },
+            { level: 16, cmds: ['nmap', 'openssl s_client'] },
             { level: 17, cmds: ['diff'] },
-            { level: 18, cmds: ['ssh user@host command (bypass .bashrc)'] },
+            { level: 18, cmds: ['ssh user@host command'] },
             { level: 19, cmds: ['./setuid-binary command'] },
-            { level: 20, cmds: ['nc -l -p', 'setuid binary + nc'] },
+            { level: 20, cmds: ['nc -l -p'] },
             { level: 21, cmds: ['cat /etc/cron.d/*', 'crontab -l'] },
-            { level: 22, cmds: ['cat cron script', 'read what it copies'] },
-            { level: 23, cmds: ['edit /tmp script cron runs', 'chmod +x'] },
-            { level: 24, cmds: ['bash loop', 'nc (brute force 4-digit pin)'] },
-            { level: 25, cmds: ['ssh -i key', 'more/less to break out of restricted shell'] },
-            { level: 26, cmds: ['ssh -i key', ':e or !bash inside editor to spawn shell'] },
-            { level: 27, cmds: ['git clone ssh://user@host:2220/repo'] },
-            { level: 28, cmds: ['git log', 'git diff', 'git show'] },
-            { level: 29, cmds: ['git log --all', 'git branch -a', 'git checkout'] },
-            { level: 30, cmds: ['git tag', 'git show <tag>'] },
-            { level: 31, cmds: ['git commit', 'git push', '.gitignore'] },
-            { level: 32, cmds: ['$0', 'uppercase shell escape'] },
-            { level: 33, cmds: ['explore the environment: this one is open-ended'] },
+            { level: 22, cmds: ['cat cron script'] },
+            { level: 23, cmds: ['edit /tmp script'] },
+            { level: 24, cmds: ['bash loop', 'nc'] },
+            { level: 25, cmds: ['ssh -i key'] },
+            { level: 26, cmds: ['ssh -i key', ':e'] },
+            { level: 27, cmds: ['git clone'] },
+            { level: 28, cmds: ['git log', 'git diff'] },
+            { level: 29, cmds: ['git log --all'] },
+            { level: 30, cmds: ['git tag'] },
+            { level: 31, cmds: ['git commit', 'git push'] },
+            { level: 32, cmds: ['$0'] },
+            { level: 33, cmds: ['explore the environment'] },
         ];
 
         function buildLevelHintUI() {
@@ -348,7 +339,12 @@
         function closeTab(id) {
             const s = sessions[id];
             if (!s) return;
-            s.socket.disconnect();
+            if (s.socket) {
+                s.socket.disconnect();
+            }
+            if (s.resizeObserver) {
+                s.resizeObserver.disconnect();
+            }
             s.term.dispose();
             document.getElementById(`tabBtn-${id}`)?.remove();
             document.getElementById(`termWrap-${id}`)?.remove();
@@ -385,6 +381,9 @@
                 inputBuffer: '',
                 term: null,
                 fitAddon: null,
+                resizeObserver: null,
+                handshakeTimer: null,
+                awaitingHandshake: false
             };
             sessions[id] = session;
 
@@ -451,7 +450,6 @@
             });
 
             term.write('player@linux:~$ ');
-
             term.onData((e) => handleTerminalInput(id, e));
 
             switchTab(id);
@@ -513,7 +511,7 @@
                     if (match) {
                         startSshLogin(id, parseInt(match[1], 10));
                     } else {
-                        term.write('\r\nInvalid target. Example: ssh bandit0@bandit.labs.overthewire.org -p 2220\r\nplayer@linux:~$ ');
+                        term.write('\r\nInvalid target.\r\nplayer@linux:~$ ');
                     }
                 } else if (cmd === 'clear') {
                     term.clear();
@@ -521,7 +519,7 @@
                 } else if (cmd === '') {
                     term.write('\r\nplayer@linux:~$ ');
                 } else {
-                    term.write('\r\nUse "ssh bandit0@bandit.labs.overthewire.org -p 2220" to connect, or pick a level on the left and click Connect.\r\nplayer@linux:~$ ');
+                    term.write('\r\nUse "ssh bandit0@bandit.labs.overthewire.org -p 2220" or pick a level.\r\nplayer@linux:~$ ');
                 }
             } else if (e === '\u007F') {
                 if (session.inputBuffer.length > 0) {
@@ -538,9 +536,11 @@
             const level = Number(document.getElementById('levelSelect').value);
             if (!activeTabId || !sessions[activeTabId]) return;
             const session = sessions[activeTabId];
-            if (session.isConnected) {
+            
+            if (session.socket) {
                 session.socket.disconnect();
             }
+
             session.socket = io(BACKEND_URL);
             wireSocketEvents(activeTabId);
             session.isConnected = false;
@@ -558,9 +558,6 @@
             session.socket.off('ssh-closed');
             session.socket.off('disconnect');
             session.socket.off('connect_error');
-            session.socket.off('connect_timeout');
-            session.socket.off('reconnect_attempt');
-            session.socket.off('reconnect_failed');
 
             session.socket.on('terminal-data', (data) => {
                 session.isConnected = true;
@@ -582,7 +579,7 @@
             session.socket.on('disconnect', () => {
                 clearHandshakeTimer(session);
                 if (session.isConnected) {
-                    term.write('\r\n\r\n[!] Connection lost. Type ssh bandit<N>@bandit.labs.overthewire.org -p 2220 to reconnect.\r\nplayer@linux:~$ ');
+                    term.write('\r\n\r\n[!] Connection lost.\r\nplayer@linux:~$ ');
                 }
                 session.isConnected = false;
                 session.isPasswordMode = false;
@@ -593,21 +590,11 @@
                 clearHandshakeTimer(session);
                 if (session.awaitingHandshake) {
                     session.awaitingHandshake = false;
-                    term.write(`\r\n\r\n[!] Could not reach the terminal server (${err.message || 'connection error'}).\r\n[!] It may be waking up from sleep — wait a few seconds and try again.\r\nplayer@linux:~$ `);
+                    term.write(`\r\n\r\n[!] Could not reach server (${err.message || 'error'}).\r\nplayer@linux:~$ `);
                 }
                 session.isConnected = false;
                 session.isPasswordMode = false;
                 setTabStatus(id, false);
-            });
-
-            session.socket.on('reconnect_attempt', () => {
-                if (session.awaitingHandshake) term.write('.');
-            });
-
-            session.socket.on('reconnect_failed', () => {
-                clearHandshakeTimer(session);
-                term.write('\r\n\r\n[!] Giving up trying to reconnect. Try again in a moment.\r\nplayer@linux:~$ ');
-                session.awaitingHandshake = false;
             });
         }
 
@@ -619,7 +606,7 @@
             session.handshakeTimer = setTimeout(() => {
                 if (session.awaitingHandshake && !session.isConnected) {
                     session.awaitingHandshake = false;
-                    session.term.write('\r\n\r\n[!] No response from the terminal server after 10s. It may be asleep — try again in a few seconds.\r\nplayer@linux:~$ ');
+                    session.term.write('\r\n\r\n[!] No response from server after 10s.\r\nplayer@linux:~$ ');
                 }
             }, 10000);
         }
