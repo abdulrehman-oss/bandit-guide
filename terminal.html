@@ -249,7 +249,10 @@
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script>
-        const BACKEND_URL = "http://localhost:3000";
+        // Automatic Backend URL: Local par localhost, aur live hone par Railway URL use hoga
+        const BACKEND_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:3000' 
+            : 'https://bandit-guide-production.up.railway.app';
 
         const LEVEL_HINTS = [
             { level: 0,  cmds: ['ssh', 'cat'] },
