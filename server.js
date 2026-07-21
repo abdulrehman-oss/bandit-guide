@@ -1,17 +1,4 @@
 // backend/server.js
-//
-// This is the piece that was missing from your setup: a real backend that
-// opens an actual SSH session to bandit.labs.overthewire.org and streams
-// it to the browser over socket.io. Without this, the frontend can only
-// ever fake a shell — it can never really log a student into bandit.
-//
-// SECURITY NOTE: students type their real OverTheWire password into this
-// server. This code does NOT log, store, or persist passwords anywhere —
-// they are held only in memory for the lifetime of the socket connection
-// and forwarded straight to the SSH library. Do not add logging of the
-// `ssh-connect` payload. Always deploy this behind HTTPS/WSS in production
-// (Railway does this for you automatically).
-
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
@@ -19,15 +6,11 @@ const { Server } = require('socket.io');
 const { Client } = require('ssh2');
 
 const PORT = process.env.PORT || 3000;
-
-// Set this to your real frontend origin(s) in production, e.g.
-// ALLOWED_ORIGINS=https://your-site.com,https://your-site.netlify.app
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '*')
-  .split(',')
-  .map(s => s.trim());
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '*').split(',').map(s => s.trim());
 
 const app = express();
 app.use(cors({ origin: ALLOWED_ORIGINS }));
+app.use(express.static(__dirname));
 app.get('/', (_req, res) => res.send('bandit-terminal backend is running'));
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
@@ -36,8 +19,6 @@ const io = new Server(server, {
   cors: { origin: ALLOWED_ORIGINS, methods: ['GET', 'POST'] },
 });
 
-// Basic per-IP connection limiter so one visitor can't open unlimited
-// SSH sessions to OverTheWire through your server.
 const MAX_SESSIONS_PER_IP = 5;
 const sessionsByIp = new Map();
 
@@ -57,16 +38,12 @@ io.on('connection', (socket) => {
   let countedForIp = false;
 
   socket.on('ssh-connect', (creds) => {
-    // Prevent multiple SSH attempts on a single socket session
     if (sshClient) {
       sshClient.end();
       sshClient = null;
     }
 
-    // Basic validation — this proxy is scoped to the bandit wargame only.
-    const host = creds && creds.host === 'bandit.labs.overthewire.org'
-      ? creds.host
-      : null;
+    const host = creds && creds.host === 'bandit.labs.overthewire.org' ? creds.host : null;
     const port = Number(creds && creds.port) || 2220;
     const username = String(creds && creds.username || '').trim();
     const password = String(creds && creds.password || '');
@@ -80,7 +57,7 @@ io.on('connection', (socket) => {
     }
 
     if ((sessionsByIp.get(ip) || 0) >= MAX_SESSIONS_PER_IP) {
-      socket.emit('message', '\r\n[!] Too many concurrent sessions from your connection. Close a tab and try again.\r\n');
+      socket.emit('message', '\r\n[!] Too many concurrent sessions from your connection.\r\n');
       socket.disconnect();
       return;
     }
@@ -91,7 +68,6 @@ io.on('connection', (socket) => {
     }
 
     sshClient = new Client();
-
     sshClient
       .on('ready', () => {
         socket.emit('message', '\r\n*** SSH connection established ***\r\n\r\n');
@@ -102,10 +78,8 @@ io.on('connection', (socket) => {
             return;
           }
           sshStream = stream;
-
           stream.on('data', (data) => socket.emit('terminal-data', data.toString('utf-8')));
           stream.stderr.on('data', (data) => socket.emit('terminal-data', data.toString('utf-8')));
-
           stream.on('close', () => {
             socket.emit('message', '\r\n\r\n*** Session closed ***\r\n');
             socket.emit('ssh-closed');
@@ -114,7 +88,6 @@ io.on('connection', (socket) => {
         });
       })
       .on('error', (err) => {
-        // Wrong password, unreachable host, timeout etc.
         socket.emit('message', `\r\n[!] SSH error: ${err.message}\r\n`);
         socket.emit('ssh-closed');
         if (countedForIp) {
@@ -126,30 +99,11 @@ io.on('connection', (socket) => {
         finish([password]);
       })
       .connect({
-        host,
-        port,
-        username,
-        password,
+        host, port, username, password,
         tryKeyboard: true,
         readyTimeout: 10000,
         connectTimeout: 10000,
         keepaliveInterval: 5000,
-        algorithms: {
-          serverHostKey: [
-            'ssh-ed25519',
-            'ecdsa-sha2-nistp256',
-            'rsa-sha2-512',
-            'rsa-sha2-256',
-            'ssh-rsa'
-          ],
-          cipher: [
-            'aes128-ctr',
-            'aes192-ctr',
-            'aes256-ctr',
-            'aes128-gcm',
-            'aes256-gcm'
-          ]
-        }
       });
   });
 
