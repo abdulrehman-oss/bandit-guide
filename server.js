@@ -6,25 +6,44 @@ const { Server } = require('socket.io');
 const { Client } = require('ssh2');
 
 const PORT = process.env.PORT || 3000;
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '*').split(',').map(s => s.trim());
+
+// Dynamic CORS: Agar environment variable set na ho toh '*' (sabko allow karega) taaki live app par error na aaye
+const allowedOriginsEnv = process.env.ALLOWED_ORIGINS;
+const ALLOWED_ORIGINS = allowedOriginsEnv ? allowedOriginsEnv.split(',').map(s => s.trim()) : '*';
 
 const app = express();
-app.use(cors({ origin: ALLOWED_ORIGINS }));
+
+// Trust proxy for live hosting platforms (Railway, Render, Heroku etc.)
+app.set('trust proxy', 1);
+
+app.use(cors({ 
+  origin: ALLOWED_ORIGINS,
+  credentials: true 
+}));
+
 app.use(express.static(__dirname));
+
 app.get('/', (_req, res) => res.send('bandit-terminal backend is running'));
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: ALLOWED_ORIGINS, methods: ['GET', 'POST'] },
+  cors: { 
+    origin: ALLOWED_ORIGINS, 
+    methods: ['GET', 'POST'],
+    credentials: true
+  },
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
-const MAX_SESSIONS_PER_IP = 5;
+const MAX_SESSIONS_PER_IP = 10; // Live environment ke liye thoda limit increase kiya gaya hai
 const sessionsByIp = new Map();
 
 function addSession(ip) {
   sessionsByIp.set(ip, (sessionsByIp.get(ip) || 0) + 1);
 }
+
 function removeSession(ip) {
   const n = (sessionsByIp.get(ip) || 1) - 1;
   if (n <= 0) sessionsByIp.delete(ip);
@@ -32,7 +51,8 @@ function removeSession(ip) {
 }
 
 io.on('connection', (socket) => {
-  const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address;
+  // Get real IP safely behind proxies
+  const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || 'unknown';
   let sshClient = null;
   let sshStream = null;
   let countedForIp = false;
@@ -43,22 +63,20 @@ io.on('connection', (socket) => {
       sshClient = null;
     }
 
-    const host = creds && creds.host === 'bandit.labs.overthewire.org' ? creds.host : null;
+    const host = creds && creds.host === 'bandit.labs.overthewire.org' ? creds.host : 'bandit.labs.overthewire.org';
     const port = Number(creds && creds.port) || 2220;
     const username = String(creds && creds.username || '').trim();
     const password = String(creds && creds.password || '');
     const cols = Number(creds && creds.cols) || 80;
     const rows = Number(creds && creds.rows) || 24;
 
-    if (!host || !/^bandit\d+(-git)?$/.test(username)) {
-      socket.emit('message', '\r\n[!] Only bandit.labs.overthewire.org bandit accounts are allowed here.\r\n');
-      socket.disconnect();
+    if (!username.startsWith('bandit')) {
+      socket.emit('message', '\r\n[!] Invalid username. Must be a bandit account.\r\n');
       return;
     }
 
     if ((sessionsByIp.get(ip) || 0) >= MAX_SESSIONS_PER_IP) {
       socket.emit('message', '\r\n[!] Too many concurrent sessions from your connection.\r\n');
-      socket.disconnect();
       return;
     }
 
@@ -74,7 +92,7 @@ io.on('connection', (socket) => {
         sshClient.shell({ term: 'xterm-256color', cols, rows }, (err, stream) => {
           if (err) {
             socket.emit('message', `\r\n[!] Could not open shell: ${err.message}\r\n`);
-            socket.disconnect();
+            sshClient.end();
             return;
           }
           sshStream = stream;
@@ -99,11 +117,14 @@ io.on('connection', (socket) => {
         finish([password]);
       })
       .connect({
-        host, port, username, password,
+        host, 
+        port, 
+        username, 
+        password,
         tryKeyboard: true,
-        readyTimeout: 10000,
-        connectTimeout: 10000,
-        keepaliveInterval: 5000,
+        readyTimeout: 15000,
+        connectTimeout: 15000,
+        keepaliveInterval: 10000,
       });
   });
 
@@ -112,12 +133,22 @@ io.on('connection', (socket) => {
   });
 
   socket.on('terminal-resize', ({ cols, rows }) => {
-    if (sshStream && cols && rows) sshStream.setWindow(rows, cols, 0, 0);
+    if (sshStream && cols && rows) {
+      try {
+        sshStream.setWindow(rows, cols, 0, 0);
+      } catch (e) {
+        // Ignore resize errors if stream is closing
+      }
+    }
   });
 
   socket.on('disconnect', () => {
-    if (sshStream) sshStream.end();
-    if (sshClient) sshClient.end();
+    if (sshStream) {
+      try { sshStream.end(); } catch (e) {}
+    }
+    if (sshClient) {
+      try { sshClient.end(); } catch (e) {}
+    }
     if (countedForIp) {
       removeSession(ip);
       countedForIp = false;
@@ -126,5 +157,5 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`bandit-terminal backend listening on :${PORT}`);
+  console.log(`bandit-terminal backend listening on port ${PORT}`);
 });
