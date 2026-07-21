@@ -456,20 +456,13 @@
             requestAnimationFrame(() => fitAndNotify(id));
         }
 
-        function startSshLogin(id, level, passwordFromCaller) {
+        function startSshLogin(id, level) {
             const session = sessions[id];
             if (!session) return;
-            const term = session.term;
-
             session.targetLevel = level;
-
-            if (passwordFromCaller !== undefined) {
-                term.write(`\r\nbandit${level}@bandit.labs.overthewire.org's password: (using saved password)\r\n`);
-                connectSsh(id, level, passwordFromCaller);
-            } else {
-                session.isPasswordMode = true;
-                term.write(`\r\nbandit${level}@bandit.labs.overthewire.org's password: `);
-            }
+            session.isPasswordMode = true;
+            session.inputBuffer = '';
+            session.term.write(`\r\nssh bandit${level}@bandit.labs.overthewire.org -p 2220\r\nbandit${level}@bandit.labs.overthewire.org's password: `);
         }
 
         function connectSsh(id, level, password) {
@@ -501,34 +494,44 @@
             }
 
             if (e === '\r') {
-                const cmd = session.inputBuffer.trim();
+                const cmd = session.inputBuffer;
                 session.inputBuffer = '';
 
                 if (session.isPasswordMode) {
-                    connectSsh(id, session.targetLevel, cmd);
-                } else if (cmd.includes('ssh') && cmd.includes('bandit')) {
-                    const match = cmd.match(/bandit(\d+)/i);
-                    if (match) {
-                        startSshLogin(id, parseInt(match[1], 10));
-                    } else {
-                        term.write('\r\nInvalid target.\r\nplayer@linux:~$ ');
-                    }
-                } else if (cmd === 'clear') {
-                    term.clear();
-                    term.write('player@linux:~$ ');
-                } else if (cmd === '') {
-                    term.write('\r\nplayer@linux:~$ ');
+                    const pwd = cmd.trim();
+                    term.write('\r\n');
+                    connectSsh(id, session.targetLevel, pwd);
                 } else {
-                    term.write('\r\nUse "ssh bandit0@bandit.labs.overthewire.org -p 2220" or pick a level.\r\nplayer@linux:~$ ');
+                    const trimmed = cmd.trim();
+                    if (trimmed.includes('ssh') && trimmed.includes('bandit')) {
+                        const match = trimmed.match(/bandit(\d+)/i);
+                        if (match) {
+                            startSshLogin(id, parseInt(match[1], 10));
+                        } else {
+                            term.write('\r\nInvalid target.\r\nplayer@linux:~$ ');
+                        }
+                    } else if (trimmed === 'clear') {
+                        term.clear();
+                        term.write('player@linux:~$ ');
+                    } else if (trimmed === '') {
+                        term.write('\r\nplayer@linux:~$ ');
+                    } else {
+                        term.write('\r\nUse "ssh bandit0@bandit.labs.overthewire.org -p 2220" or pick a level.\r\nplayer@linux:~$ ');
+                    }
                 }
             } else if (e === '\u007F') {
                 if (session.inputBuffer.length > 0) {
                     session.inputBuffer = session.inputBuffer.slice(0, -1);
-                    if (!session.isPasswordMode) term.write('\b \b');
+                    term.write('\b \b');
                 }
             } else {
                 session.inputBuffer += e;
-                if (!session.isPasswordMode) term.write(e);
+                if (!session.isPasswordMode) {
+                    term.write(e);
+                } else {
+                    // Password mode mein characters print nahi honge taake secure rahen
+                    term.write('*');
+                }
             }
         }
 
@@ -544,8 +547,6 @@
             session.socket = io(BACKEND_URL);
             wireSocketEvents(activeTabId);
             session.isConnected = false;
-            session.isPasswordMode = false;
-            session.term.write(`\r\nssh bandit${level}@bandit.labs.overthewire.org -p 2220`);
             startSshLogin(activeTabId, level);
         });
 
